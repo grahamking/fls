@@ -43,6 +43,7 @@ use std::io::Write;
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rustc-link-arg=-nostartfiles");
+    println!("cargo:rustc-link-arg=-Wl,-n,-N,--no-dynamic-linker,--no-pie,--build-id=none,--no-eh-frame-hdr");
 
     let mut all_styles = Vec::new();
     for (extensions, style) in STYLES {
