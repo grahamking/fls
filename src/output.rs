@@ -8,7 +8,6 @@ use alloc::vec::Vec;
 use veneer::{fs::Directory, syscalls, CStr};
 
 use libc::{S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWOTH, S_IWUSR, S_IXGRP, S_IXOTH, S_IXUSR};
-use unicode_width::UnicodeWidthStr;
 
 #[macro_export]
 macro_rules! print {
@@ -77,7 +76,8 @@ pub fn write_details(entries: &[(DirEntry, Option<Status>)], dir: &Directory, ap
     inode_len = buf.format(inode_len as u64).len();
     blocks_len = buf.format(blocks_len as u64).len();
 
-    let current_time = syscalls::gettimeofday().unwrap().tv_sec;
+    // The unwrap_or(0) makes current time default to epoch if syscall fails
+    let current_time = syscalls::gettimeofday().map(|t| t.tv_sec).unwrap_or(0);
     let one_year = 365 * 24 * 60 * 60;
 
     for direntry in entries {
@@ -282,6 +282,7 @@ pub fn write_grid(
         for i in (0..cursors.len()).rev() {
             let layout_start = sum_to(i + 1) - 1;
 
+            // TODO: indexing
             let current = &mut layouts[layout_start + cursors[i].column];
             if len > *current {
                 cursors[i].this_layout_width += len - *current;
@@ -297,6 +298,7 @@ pub fn write_grid(
                     cursors[i].left_in_this_column = cursors[i].rows;
                 }
             }
+            // TODO: end indexing
         }
     }
 
@@ -426,15 +428,8 @@ pub fn write_single_column(entries: &[(DirEntry, Option<Status>)], dir: &Directo
     }
 }
 
-#[inline(never)]
 fn len_utf8(bytes: &[u8]) -> usize {
-    if bytes.iter().all(u8::is_ascii) {
-        bytes.len()
-    } else {
-        core::str::from_utf8(bytes)
-            .map(|s| s.width())
-            .unwrap_or(bytes.len())
-    }
+    bytes.len()
 }
 
 pub trait Writable {
@@ -482,7 +477,7 @@ impl Writable for i64 {
     fn write(&self, out: &mut OutputBuffer) {
         use core::convert::TryFrom;
         let mut buf = Buffer::new();
-        out.write(buf.format(u64::try_from(*self).unwrap()));
+        out.write(buf.format(u64::try_from(*self).unwrap_or(0)));
     }
 }
 

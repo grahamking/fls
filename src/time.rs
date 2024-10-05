@@ -31,7 +31,10 @@ impl SliceExt for &[u8] {
         }
         let (head, tail) = self.split_at(4);
         *self = tail;
-        Some(u32::from_be_bytes(head.try_into().unwrap()))
+        match head.try_into() {
+            Ok(h) => Some(u32::from_be_bytes(h)),
+            Err(_) => None,
+        }
     }
 }
 
@@ -90,11 +93,19 @@ fn parse_data(buffer: &[u8], header: Header) -> Option<Tzinfo> {
 }
 
 fn read_i32(bytes: &[u8]) -> i32 {
-    i32::from_be_bytes(bytes[..4].try_into().unwrap())
+    // TODO: This array indexing can panic, replace it
+    match bytes[..4].try_into() {
+        Ok(b) => i32::from_be_bytes(b),
+        Err(_) => 0,
+    }
 }
 
 fn read_i64(bytes: &[u8]) -> i64 {
-    i64::from_be_bytes(bytes[..8].try_into().unwrap())
+    // TODO: This array indexing can panic, replace it
+    match bytes[..8].try_into() {
+        Ok(b) => i64::from_be_bytes(b),
+        Err(_) => 0,
+    }
 }
 
 const HEADER_LEN: usize = 0x2C;
@@ -125,11 +136,25 @@ pub struct LocalTime {
     pub minute: i32,
 }
 
+impl LocalTime {
+    // Invalid Tzinfo to avoid needing to panic
+    pub fn null() -> Self {
+        LocalTime {
+            year: 0,
+            month: 0,
+            day_of_month: 0,
+            hour: 0,
+            minute: 0,
+        }
+    }
+}
+
 impl Tzinfo {
+    // Parse /etc/localtime
     #[inline(never)]
-    pub fn new(zi: &[u8]) -> Self {
-        let header = parse_header(zi).unwrap();
-        parse_data(zi, header).unwrap()
+    pub fn new(zi: &[u8]) -> Option<Self> {
+        let header = parse_header(zi)?;
+        parse_data(zi, header)
     }
 
     fn gmt_offset(&self, time: i64) -> i64 {
@@ -197,11 +222,11 @@ impl Tzinfo {
         }
 
         LocalTime {
-            year: (years + 100).try_into().unwrap(),
-            month: (months + 2).try_into().unwrap(),
-            day_of_month: (remdays + 1).try_into().unwrap(),
-            hour: (remsecs / 3600).try_into().unwrap(),
-            minute: (remsecs / 60 % 60).try_into().unwrap(),
+            year: (years + 100).try_into().unwrap_or(0),
+            month: (months + 2).try_into().unwrap_or(0),
+            day_of_month: (remdays + 1).try_into().unwrap_or(0),
+            hour: (remsecs / 3600).try_into().unwrap_or(0),
+            minute: (remsecs / 60 % 60).try_into().unwrap_or(0),
         }
     }
 }

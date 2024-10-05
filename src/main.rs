@@ -80,7 +80,10 @@ fn main() -> Result<(), Error> {
     }
 
     if !files.is_empty() {
-        let dir = Directory::open(CStr::from_bytes(b".\0")).unwrap();
+        let Ok(dir) = Directory::open(CStr::from_bytes(b".\0")) else {
+            let _ = veneer::syscalls::write(2, b"Cannot open current directory\n\0");
+            return Err(Error(1));
+        };
         if app.needs_details {
             for e in &mut files {
                 let status = if app.follow_symlinks == cli::FollowSymlinks::Always {
@@ -115,7 +118,9 @@ fn main() -> Result<(), Error> {
     for (n, (name, dir)) in dirs.iter().enumerate() {
         let mut path = Vec::new();
         path.extend(name.as_bytes());
-        let status = syscalls::fstat(dir.raw_fd()).unwrap();
+        let Ok(status) = syscalls::fstat(dir.raw_fd()) else {
+            continue;
+        };
         let mut stack = vec![(status.st_dev, status.st_ino)];
         list_dir_contents(&mut stack, &mut path, dir, &mut app);
         // When recursing the recursion handles newlines, if not we need to check if we're on the
@@ -253,7 +258,9 @@ fn list_dir_contents(
             path.push(0);
             match Directory::open(CStr::from_bytes(path)) {
                 Ok(dir) => {
-                    let status = syscalls::fstat(dir.raw_fd()).unwrap();
+                    let Ok(status) = syscalls::fstat(dir.raw_fd()) else {
+                        continue;
+                    };
                     if !stack.contains(&(status.st_dev, status.st_ino)) {
                         stack.push((status.st_dev, status.st_ino));
                         list_dir_contents(stack, path, &dir, app);

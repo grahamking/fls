@@ -10,9 +10,8 @@ edition = "2018"
 include = ["src/**/*.rs", "build.rs", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [dependencies]
-veneer = { version = "0.2.1", features = ["rt"] }
+veneer = { path = "/home/graham/src/veneer", features = ["rt"] }
 libc = "0.2"
-unicode-width = "0.1"
 
 [profile.dev]
 panic = "abort"
@@ -21,5 +20,5 @@ panic = "abort"
 panic = "abort"
 codegen-units = 1
 lto = "fat"
-strip = true
+#strip = true
 opt-level = "s"

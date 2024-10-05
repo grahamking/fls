@@ -315,8 +315,11 @@ impl App {
                 &mut app.uid_names,
             )?;
             Self::init_id_map(&b"/etc/group\0"[..], &mut app.etc_group, &mut app.gid_names)?;
-            let zi = crate::utils::fs_read(CStr::from_bytes(&b"/etc/localtime\0"[..])).unwrap();
-            app.tzinfo = Some(crate::time::Tzinfo::new(&zi));
+            let Ok(zi) = crate::utils::fs_read(CStr::from_bytes(&b"/etc/localtime\0"[..])) else {
+                let _ = veneer::syscalls::write(2, b"Missing /etc/localtime\n\0");
+                return Err(Error(2));
+            };
+            app.tzinfo = crate::time::Tzinfo::new(&zi);
         }
 
         app.needs_details = app.display_mode == DisplayMode::Long
@@ -328,7 +331,10 @@ impl App {
     }
 
     pub fn convert_to_localtime(&self, time: i64) -> crate::time::LocalTime {
-        self.tzinfo.as_ref().unwrap().convert_to_localtime(time)
+        self.tzinfo
+            .as_ref()
+            .map(|tz| tz.convert_to_localtime(time))
+            .unwrap_or_else(|| crate::time::LocalTime::null())
     }
 
     #[inline(never)]
@@ -348,9 +354,22 @@ impl App {
                 continue;
             }
             let mut it = line.split(|b| *b == b':');
-            let name = it.next().unwrap();
-            let _passwd = it.next().unwrap();
-            let uid = atoi(it.next().unwrap()) as u32;
+            let Some(name) = it.next() else {
+                let _ = veneer::syscalls::write(
+                    2,
+                    b"init_id_map: Missing name in /etc/passwd or /etc/group\n\0",
+                );
+                return Err(Error(3));
+            };
+            //let _passwd = it.next().unwrap();
+            let Some(s) = it.skip(1).next() else {
+                let _ = veneer::syscalls::write(
+                    2,
+                    b"init_id_map: Missing uid in /etc/passwd or /etc/group\n\0",
+                );
+                return Err(Error(3));
+            };
+            let uid = atoi(s) as u32;
 
             map.push((uid, (offset, offset + name.len())));
 
